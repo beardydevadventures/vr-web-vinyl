@@ -1,0 +1,136 @@
+// Import required libraries
+import * as THREE from 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.module.js';
+import { VRButton } from 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/examples/jsm/webxr/VRButton.js';
+import { XRControllerModelFactory } from 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/examples/jsm/webxr/XRControllerModelFactory.js';
+
+// Set up the scene, camera, and renderer
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.xr.enabled = true;
+document.body.appendChild(renderer.domElement);
+document.body.appendChild(VRButton.createButton(renderer));
+
+// Create a vinyl player
+const playerGeometry = new THREE.CylinderGeometry(0.5, 0.5, 0.05, 32);
+const playerMaterial = new THREE.MeshBasicMaterial({ color: 0x333333 });
+const player = new THREE.Mesh(playerGeometry, playerMaterial);
+player.position.set(0, 0.5, -1);
+scene.add(player);
+
+// Create a function to fetch album covers from Discogs API
+async function fetchAlbumCover(query) {
+  const apiKey = 'YOUR_DISCOGS_API_KEY';
+  const apiSecret = 'YOUR_DISCOGS_API_SECRET';
+  const url = `https://api.discogs.com/database/search?q=${query}&type=release&key=${apiKey}&secret=${apiSecret}`;
+
+  try {
+    const response = await fetch(url);
+    const data = await response.json();
+    if (data.results && data.results.length > 0) {
+      return data.results[0].cover_image;
+    }
+  } catch (error) {
+    console.error('Error fetching album cover:', error);
+  }
+  return null;
+}
+
+// Create a function to create an album cover object
+function createAlbumCover(imageUrl) {
+  const textureLoader = new THREE.TextureLoader();
+  const texture = textureLoader.load(imageUrl);
+  const geometry = new THREE.PlaneGeometry(0.4, 0.4);
+  const material = new THREE.MeshBasicMaterial({ map: texture });
+  const cover = new THREE.Mesh(geometry, material);
+  cover.position.set(Math.random() * 2 - 1, 1, Math.random() * 2 - 1);
+  scene.add(cover);
+  return cover;
+}
+
+// Set up VR controllers
+const controllerModelFactory = new XRControllerModelFactory();
+
+function onSelectStart(event) {
+  const controller = event.target;
+  const intersections = getIntersections(controller);
+
+  if (intersections.length > 0) {
+    const intersection = intersections[0];
+    const object = intersection.object;
+
+    if (object.userData.draggable) {
+      controller.userData.selected = object;
+    }
+  }
+}
+
+function onSelectEnd(event) {
+  const controller = event.target;
+
+  if (controller.userData.selected) {
+    const object = controller.userData.selected;
+    object.material.emissive.b = 0;
+    controller.userData.selected = undefined;
+  }
+}
+
+function getIntersections(controller) {
+  const tempMatrix = new THREE.Matrix4();
+  tempMatrix.identity().extractRotation(controller.matrixWorld);
+
+  raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
+  raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
+
+  return raycaster.intersectObjects(scene.children);
+}
+
+const controller1 = renderer.xr.getController(0);
+controller1.addEventListener('selectstart', onSelectStart);
+controller1.addEventListener('selectend', onSelectEnd);
+scene.add(controller1);
+
+const controller2 = renderer.xr.getController(1);
+controller2.addEventListener('selectstart', onSelectStart);
+controller2.addEventListener('selectend', onSelectEnd);
+scene.add(controller2);
+
+const controllerGrip1 = renderer.xr.getControllerGrip(0);
+controllerGrip1.add(controllerModelFactory.createControllerModel(controllerGrip1));
+scene.add(controllerGrip1);
+
+const controllerGrip2 = renderer.xr.getControllerGrip(1);
+controllerGrip2.add(controllerModelFactory.createControllerModel(controllerGrip2));
+scene.add(controllerGrip2);
+
+// Set up raycaster for interaction
+const raycaster = new THREE.Raycaster();
+
+// Animation loop
+function animate() {
+  renderer.setAnimationLoop(render);
+}
+
+function render() {
+  // Update VR controller interaction
+  if (controller1.userData.selected) {
+    controller1.userData.selected.position.copy(controller1.position);
+  }
+  if (controller2.userData.selected) {
+    controller2.userData.selected.position.copy(controller2.position);
+  }
+
+  renderer.render(scene, camera);
+}
+
+// Start the animation loop
+animate();
+
+// Example usage:
+fetchAlbumCover('Dark Side of the Moon').then(coverUrl => {
+  if (coverUrl) {
+    const albumCover = createAlbumCover(coverUrl);
+    albumCover.userData.draggable = true;
+  }
+});

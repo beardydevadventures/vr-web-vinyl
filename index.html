@@ -1,136 +1,135 @@
-// Import required libraries
-import * as THREE from 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.module.js';
-import { VRButton } from 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/examples/jsm/webxr/VRButton.js';
-import { XRControllerModelFactory } from 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/examples/jsm/webxr/XRControllerModelFactory.js';
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Browser Vinyl Player</title>
+    <style>
+        body { margin: 0; }
+        canvas { display: block; }
+        #info {
+            position: absolute;
+            top: 10px;
+            width: 100%;
+            text-align: center;
+            color: white;
+        }
+        #searchInput {
+            position: absolute;
+            top: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+    </style>
+</head>
+<body>
+    <div id="info">Click and drag to rotate the scene. Right-click and drag to pan.</div>
+    <input type="text" id="searchInput" placeholder="Search for an album">
+    <script type="module">
+        import * as THREE from 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.module.js';
+        import { OrbitControls } from 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/examples/jsm/controls/OrbitControls.js';
+        import { DragControls } from 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/examples/jsm/controls/DragControls.js';
 
-// Set up the scene, camera, and renderer
-const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.xr.enabled = true;
-document.body.appendChild(renderer.domElement);
-document.body.appendChild(VRButton.createButton(renderer));
+        // Set up the scene, camera, and renderer
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
 
-// Create a vinyl player
-const playerGeometry = new THREE.CylinderGeometry(0.5, 0.5, 0.05, 32);
-const playerMaterial = new THREE.MeshBasicMaterial({ color: 0x333333 });
-const player = new THREE.Mesh(playerGeometry, playerMaterial);
-player.position.set(0, 0.5, -1);
-scene.add(player);
+        // Set up OrbitControls
+        const orbitControls = new OrbitControls(camera, renderer.domElement);
+        camera.position.set(0, 2, 3);
+        orbitControls.update();
 
-// Create a function to fetch album covers from Discogs API
-async function fetchAlbumCover(query) {
-  const apiKey = 'YOUR_DISCOGS_API_KEY';
-  const apiSecret = 'YOUR_DISCOGS_API_SECRET';
-  const url = `https://api.discogs.com/database/search?q=${query}&type=release&key=${apiKey}&secret=${apiSecret}`;
+        // Create a vinyl player
+        const playerGeometry = new THREE.CylinderGeometry(0.5, 0.5, 0.05, 32);
+        const playerMaterial = new THREE.MeshPhongMaterial({ color: 0x333333 });
+        const player = new THREE.Mesh(playerGeometry, playerMaterial);
+        player.position.set(0, 0, 0);
+        scene.add(player);
 
-  try {
-    const response = await fetch(url);
-    const data = await response.json();
-    if (data.results && data.results.length > 0) {
-      return data.results[0].cover_image;
-    }
-  } catch (error) {
-    console.error('Error fetching album cover:', error);
-  }
-  return null;
-}
+        // Add lighting
+        const ambientLight = new THREE.AmbientLight(0x404040);
+        scene.add(ambientLight);
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
+        directionalLight.position.set(1, 1, 1);
+        scene.add(directionalLight);
 
-// Create a function to create an album cover object
-function createAlbumCover(imageUrl) {
-  const textureLoader = new THREE.TextureLoader();
-  const texture = textureLoader.load(imageUrl);
-  const geometry = new THREE.PlaneGeometry(0.4, 0.4);
-  const material = new THREE.MeshBasicMaterial({ map: texture });
-  const cover = new THREE.Mesh(geometry, material);
-  cover.position.set(Math.random() * 2 - 1, 1, Math.random() * 2 - 1);
-  scene.add(cover);
-  return cover;
-}
+        // Create a function to fetch album covers from Discogs API
+        async function fetchAlbumCover(query) {
+            const apiKey = 'YOUR_DISCOGS_API_KEY';
+            const apiSecret = 'YOUR_DISCOGS_API_SECRET';
+            const url = `https://api.discogs.com/database/search?q=${query}&type=release&key=${apiKey}&secret=${apiSecret}`;
 
-// Set up VR controllers
-const controllerModelFactory = new XRControllerModelFactory();
+            try {
+                const response = await fetch(url);
+                const data = await response.json();
+                if (data.results && data.results.length > 0) {
+                    return data.results[0].cover_image;
+                }
+            } catch (error) {
+                console.error('Error fetching album cover:', error);
+            }
+            return null;
+        }
 
-function onSelectStart(event) {
-  const controller = event.target;
-  const intersections = getIntersections(controller);
+        // Create a function to create an album cover object
+        function createAlbumCover(imageUrl) {
+            const textureLoader = new THREE.TextureLoader();
+            const texture = textureLoader.load(imageUrl);
+            const geometry = new THREE.PlaneGeometry(0.4, 0.4);
+            const material = new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide });
+            const cover = new THREE.Mesh(geometry, material);
+            cover.position.set(Math.random() * 2 - 1, 0.5, Math.random() * 2 - 1);
+            scene.add(cover);
+            return cover;
+        }
 
-  if (intersections.length > 0) {
-    const intersection = intersections[0];
-    const object = intersection.object;
+        // Set up DragControls
+        const dragObjects = [];
+        const dragControls = new DragControls(dragObjects, camera, renderer.domElement);
 
-    if (object.userData.draggable) {
-      controller.userData.selected = object;
-    }
-  }
-}
+        dragControls.addEventListener('dragstart', function (event) {
+            orbitControls.enabled = false;
+        });
 
-function onSelectEnd(event) {
-  const controller = event.target;
+        dragControls.addEventListener('dragend', function (event) {
+            orbitControls.enabled = true;
+        });
 
-  if (controller.userData.selected) {
-    const object = controller.userData.selected;
-    object.material.emissive.b = 0;
-    controller.userData.selected = undefined;
-  }
-}
+        // Handle window resizing
+        window.addEventListener('resize', onWindowResize, false);
 
-function getIntersections(controller) {
-  const tempMatrix = new THREE.Matrix4();
-  tempMatrix.identity().extractRotation(controller.matrixWorld);
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
 
-  raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
-  raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
+        // Animation loop
+        function animate() {
+            requestAnimationFrame(animate);
+            orbitControls.update();
+            renderer.render(scene, camera);
+        }
 
-  return raycaster.intersectObjects(scene.children);
-}
+        // Start the animation loop
+        animate();
 
-const controller1 = renderer.xr.getController(0);
-controller1.addEventListener('selectstart', onSelectStart);
-controller1.addEventListener('selectend', onSelectEnd);
-scene.add(controller1);
-
-const controller2 = renderer.xr.getController(1);
-controller2.addEventListener('selectstart', onSelectStart);
-controller2.addEventListener('selectend', onSelectEnd);
-scene.add(controller2);
-
-const controllerGrip1 = renderer.xr.getControllerGrip(0);
-controllerGrip1.add(controllerModelFactory.createControllerModel(controllerGrip1));
-scene.add(controllerGrip1);
-
-const controllerGrip2 = renderer.xr.getControllerGrip(1);
-controllerGrip2.add(controllerModelFactory.createControllerModel(controllerGrip2));
-scene.add(controllerGrip2);
-
-// Set up raycaster for interaction
-const raycaster = new THREE.Raycaster();
-
-// Animation loop
-function animate() {
-  renderer.setAnimationLoop(render);
-}
-
-function render() {
-  // Update VR controller interaction
-  if (controller1.userData.selected) {
-    controller1.userData.selected.position.copy(controller1.position);
-  }
-  if (controller2.userData.selected) {
-    controller2.userData.selected.position.copy(controller2.position);
-  }
-
-  renderer.render(scene, camera);
-}
-
-// Start the animation loop
-animate();
-
-// Example usage:
-fetchAlbumCover('Dark Side of the Moon').then(coverUrl => {
-  if (coverUrl) {
-    const albumCover = createAlbumCover(coverUrl);
-    albumCover.userData.draggable = true;
-  }
-});
+        // Handle album search
+        const searchInput = document.getElementById('searchInput');
+        searchInput.addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') {
+                const query = searchInput.value;
+                fetchAlbumCover(query).then(coverUrl => {
+                    if (coverUrl) {
+                        const albumCover = createAlbumCover(coverUrl);
+                        dragObjects.push(albumCover);
+                    }
+                });
+            }
+        });
+    </script>
+</body>
+</html>
